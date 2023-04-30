@@ -13,9 +13,11 @@ public class TestUsername : Unity.Netcode.NetworkBehaviour
         m_textBox = GetComponent<TMPro.TextMeshProUGUI>();
         m_textBox.text = "";
 
-        for(int i = 0; i < Jacobs.Core.UsernameManager.Singleton.RegisteredClients.Count; i++)
+        IEnumerator<ulong> clients = Jacobs.Core.UsernameManager.Singleton.RegisteredClients;
+
+        while(clients.MoveNext())
         {
-            m_textBox.text += Jacobs.Core.UsernameManager.Singleton.RegisteredClients[i].Username + "\n";
+            m_textBox.text += clients.Current.ToString()+ "\n";
         }
 
         Jacobs.Core.UsernameManager.Singleton.OnValueChange.AddListener(OnValueChanged);
@@ -25,9 +27,11 @@ public class TestUsername : Unity.Netcode.NetworkBehaviour
     {
         m_textBox.text = "";
 
-        for (int i = 0; i < Jacobs.Core.UsernameManager.Singleton.RegisteredClients.Count; i++)
+        IEnumerator<ulong> clients = Jacobs.Core.UsernameManager.Singleton.RegisteredClients;
+
+        while (clients.MoveNext())
         {
-            m_textBox.text += Jacobs.Core.UsernameManager.Singleton.RegisteredClients[i].Username + "\n";
+            m_textBox.text += clients.Current.ToString() + "\n";
         }
     }
 }
