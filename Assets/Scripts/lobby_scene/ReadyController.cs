@@ -40,7 +40,7 @@ namespace Jacobs.Lobby
         [SerializeField] private PlayerReadyStatus m_playerReadyStatusPrefab = null;
         [SerializeField] private KeyCode m_actionKey = KeyCode.Return;
         [SerializeField] private PlayerReadyStatus[] m_playerCards;
-        private NetworkList<LobbyPlayerState> m_activeClients;
+        private NetworkList<LobbyPlayerState> m_activeClients = null;
 
         //private NetworkList<LobbyPlayerState> m_lobbyPlayers = new NetworkList<LobbyPlayerState>();
 
@@ -61,7 +61,7 @@ namespace Jacobs.Lobby
         private void Awake()
         {
             m_activeClients = new NetworkList<LobbyPlayerState>();
-            m_activeClients.Initialize(this);
+            //m_activeClients.Initialize(this);
         }
 
         public void TryLoadScene(string p_name)
@@ -138,8 +138,8 @@ namespace Jacobs.Lobby
 
         public override void OnDestroy()
         {
+            base.OnDestroy();
             if(IsServer) NetworkManager.OnClientConnectedCallback -= Callback;
-            if (m_activeClients != null) { m_activeClients.Clear(); m_activeClients.Dispose(); }
         }
 
         private void Callback(ulong p_ID)

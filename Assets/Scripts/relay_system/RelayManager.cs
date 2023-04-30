@@ -41,6 +41,7 @@ namespace Jacobs.Core
         [Header("Relay Settings")]
         [SerializeField] private string m_environment = "production";
         [SerializeField] private int m_requestedConnections = 10;
+        private RelayHostData m_hostData;
 
         [Header("Game Settings")]
 #if UNITY_EDITOR
@@ -57,6 +58,7 @@ namespace Jacobs.Core
         //Properties:
         public UnityTransport Transport => NetworkManager.Singleton.GetComponent<UnityTransport>();
         public bool IsEnabled => Transport != null && Transport.Protocol == PROTOCOL_TYPE;
+        public string JoinCode => m_hostData.m_joinCode;
 
         /*
          * When using the relay manager to create a networked session it is recommneded that this instance is used when
@@ -74,7 +76,7 @@ namespace Jacobs.Core
             m_networkManager = GetComponent<NetworkManager>();
             m_networkManager.SetSingleton();
 
-            //m_usernameManager = GetComponent<UsernameManager>();
+            m_usernameManager = UsernameManager.Singleton;
         }
 
         private void OnDestroy()
@@ -154,12 +156,14 @@ namespace Jacobs.Core
             NetworkManager.Singleton.ConnectionApprovalCallback += ApprovalCallback;
 
             NetworkManager.Singleton.StartHost();
-            //m_usernameManager.AddClient(m_networkManager.LocalClientId, "HOST_USER");
+            m_usernameManager.SetClientUsername(m_networkManager.LocalClientId, "HOST_USER");
 
             Debug.Log("Relay generated join code: " + relay_host_data.m_joinCode);
 
             //Setup and load the main level.
             NetworkManager.Singleton.SceneManager.LoadScene("lobby", UnityEngine.SceneManagement.LoadSceneMode.Single);
+
+            m_hostData = relay_host_data;
 
             return relay_host_data;
         }
@@ -170,7 +174,7 @@ namespace Jacobs.Core
             ulong clientID = p_request.ClientNetworkId;
             ConnectionPayload payload = JsonUtility.FromJson<ConnectionPayload>(System.Text.Encoding.ASCII.GetString(p_request.Payload));
 
-            m_usernameManager.AddClient(clientID, payload.m_playerName);
+            m_usernameManager.SetClientUsername(clientID, payload.m_playerName+"_"+clientID.ToString());
 
             p_response.Approved = true;
             p_response.Pending = false;

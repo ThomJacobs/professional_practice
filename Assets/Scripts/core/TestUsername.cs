@@ -13,11 +13,21 @@ public class TestUsername : Unity.Netcode.NetworkBehaviour
         m_textBox = GetComponent<TMPro.TextMeshProUGUI>();
         m_textBox.text = "";
 
-        IEnumerator<Jacobs.Core.UsernameManager.ClientData> enumerable = Jacobs.Core.UsernameManager.Singleton.RegisteredClients;
-
-        while (enumerable.MoveNext())
+        for(int i = 0; i < Jacobs.Core.UsernameManager.Singleton.RegisteredClients.Count; i++)
         {
-            m_textBox.text += enumerable.Current.Username +"\n";
+            m_textBox.text += Jacobs.Core.UsernameManager.Singleton.RegisteredClients[i].Username + "\n";
+        }
+
+        Jacobs.Core.UsernameManager.Singleton.OnValueChange.AddListener(OnValueChanged);
+    }
+
+    public void OnValueChanged()
+    {
+        m_textBox.text = "";
+
+        for (int i = 0; i < Jacobs.Core.UsernameManager.Singleton.RegisteredClients.Count; i++)
+        {
+            m_textBox.text += Jacobs.Core.UsernameManager.Singleton.RegisteredClients[i].Username + "\n";
         }
     }
 }

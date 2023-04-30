@@ -9,11 +9,13 @@ namespace Jacobs.Core
     public sealed class UsernameManager : Core.NetworkSingleton<UsernameManager>
     {
         //Attributes:
-        private NetworkDictionary<ulong, ClientData> m_connectedClients = null;
+        public NetworkList<ClientData> m_connectedClients = null;
+        public UnityEngine.Events.UnityEvent OnValueChange = new UnityEngine.Events.UnityEvent();
+        private Dictionary<ulong, int> m_clientToIndex = null;
         private const string DEFAULT_USERNAME = "DEFAULT_USER_";
 
         //Structures:
-        public struct ClientData : INetworkSerializable
+        public struct ClientData : System.IEquatable<ClientData>, INetworkSerializable
         {
             //Attributes:
             public FixedString64Bytes m_username;
@@ -28,6 +30,11 @@ namespace Jacobs.Core
 
             public ulong ClientID => m_clientID;
 
+            public bool Equals(ClientData other)
+            {
+                return Username == other.Username && ClientID == other.ClientID; 
+            }
+
             public void NetworkSerialize<T>(BufferSerializer<T> serializer) where T : IReaderWriter
             {
                 serializer.SerializeValue<FixedString64Bytes>(ref m_username);
@@ -36,9 +43,9 @@ namespace Jacobs.Core
         }
 
         //Properties:
-        public IEnumerator<ClientData> RegisteredClients
+        public NetworkList<ClientData> RegisteredClients
         {
-            get => m_connectedClients.Values.GetEnumerator();
+            get => m_connectedClients;
         }
 
         //Methods:
@@ -47,14 +54,23 @@ namespace Jacobs.Core
             //We do not want our player information to be lost when a new scene is loaded.
             DontDestroyOnLoad(gameObject);
 
-            //Initialise and setup dictionary of connected clients.
-            m_connectedClients = new NetworkDictionary<ulong, ClientData>();
-            m_connectedClients.Initialize(this);
+            //Initialise network list and dictionary.
+            m_connectedClients = new NetworkList<ClientData>();
+            m_clientToIndex = new Dictionary<ulong, int>();
+        }
+
+        private void OnValueChanged(NetworkListEvent<ClientData> p_client)
+        {
+            OnValueChange.Invoke();
         }
 
         public override void OnNetworkSpawn()
         {
             base.OnNetworkSpawn();
+
+            Debug.Log("[UsernameManager] Number of clients registered: " + m_connectedClients.Count);
+
+            m_connectedClients.OnListChanged += OnValueChanged;
 
             if (!IsServer) { return; }
 
@@ -64,65 +80,90 @@ namespace Jacobs.Core
 
             foreach (ulong client in NetworkManager.ConnectedClientsIds)
             {
-                m_connectedClients.Add(client, new ClientData { m_clientID = client, m_username = DEFAULT_USERNAME + client.ToString() });
+                m_connectedClients.Add(new ClientData { m_clientID = client, m_username = DEFAULT_USERNAME + client.ToString() });
+                m_clientToIndex[client] = m_connectedClients.Count-1;
             }
         }
 
         public void SetClientUsername(ulong p_clientID, string p_username)
         {
-            if(!m_connectedClients.ContainsKey(p_clientID)) { return; }
+            if(!m_clientToIndex.ContainsKey(p_clientID)) { return; }
 
-            m_connectedClients[p_clientID] = new ClientData { m_clientID = p_clientID, m_username = p_username };
-        }
-
-        public void AddClient(ulong p_clientID, string p_username)
-        {
-            if(m_connectedClients.ContainsKey(p_clientID))
-            {
-                m_connectedClients[p_clientID] = new ClientData { m_clientID = p_clientID, m_username = p_username };
-                return;
-            }
-
-            m_connectedClients.Add(p_clientID, new ClientData { m_clientID = p_clientID, m_username = p_username });
+            m_connectedClients[m_clientToIndex[p_clientID]] = new ClientData { m_clientID = p_clientID, m_username = p_username };
         }
 
         public ClientData GetClient(ulong p_clientID)
         {
             //Client has not been added to the list of connected clients.
-            if(!m_connectedClients.ContainsKey(p_clientID)) { Debug.LogError("[UsernameManager] Client with ID: " + p_clientID + " does not exist in structure."); return default; }
+            if(!m_clientToIndex.ContainsKey(p_clientID)) { Debug.LogError("[UsernameManager] Client with ID: " + p_clientID + " does not exist in structure."); return default; }
 
-            return m_connectedClients[p_clientID];
+            return m_connectedClients[m_clientToIndex[p_clientID]];
         }
 
-        public ClientData this[ulong p_clientData] => m_connectedClients.ContainsKey(p_clientData) ? m_connectedClients[p_clientData] : default;
+        public ClientData this[ulong p_clientID] => m_clientToIndex.ContainsKey(p_clientID) ? m_connectedClients[m_clientToIndex[p_clientID]] : default;
 
         private void ClientConnectedCallback(ulong p_clientID)
         {
             //If the game is setup correctly, it should be very unlikely for the same client to be added twice. (since they are removed during client disconnection). 
-            if(m_connectedClients.ContainsKey(p_clientID)) { return; }
+            if(m_clientToIndex.ContainsKey(p_clientID)) { return; }
 
             //Initialise and add data about the client to the dictionary.
-            m_connectedClients.Add(p_clientID, new ClientData { m_clientID = p_clientID, m_username = DEFAULT_USERNAME + p_clientID.ToString() });
+            m_connectedClients.Add(new ClientData { m_clientID = p_clientID, m_username = DEFAULT_USERNAME + p_clientID.ToString() });
+            m_clientToIndex[p_clientID] = m_connectedClients.Count-1;
         }
 
         private void ClientDisconnectedCallback(ulong p_clientID)
         {
             //If the client hasn't been added to the dictionary, then there is nothing to remove.
-            if(!m_connectedClients.ContainsKey(p_clientID)) { return; }
+            if(!m_clientToIndex.ContainsKey(p_clientID)) { return; }
 
             //Remove the client.
-            m_connectedClients.Remove(p_clientID);
+            m_connectedClients.RemoveAt(m_clientToIndex[p_clientID]);
+            m_clientToIndex.Remove(p_clientID);
         }
 
         public override void OnNetworkDespawn()
         {
-            base.OnNetworkDespawn();
+            if(!IsHost) { return; }
 
-            if(m_connectedClients == null) { return; }
-
-            //Clear the data about the connected clients.
+            m_connectedClients.OnListChanged -= OnValueChanged;
             m_connectedClients.Clear();
-            m_connectedClients.Dispose();
+            m_clientToIndex.Clear();
+
+            base.OnNetworkDespawn();
+        }
+
+        public override void OnDestroy()
+        {
+            base.OnDestroy();
         }
     }
+
+#if UNITY_EDITOR
+    [UnityEditor.CustomEditor(typeof(UsernameManager))]
+    public class UsernameManagerEditor : UnityEditor.Editor
+    {
+        //Attributes:
+        UsernameManager m_self = null; 
+
+        //Methods:
+        private void OnEnable()
+        {
+            m_self = (UsernameManager)target;
+        }
+
+        public override void OnInspectorGUI()
+        {
+            base.OnInspectorGUI();
+
+            if(m_self.m_connectedClients != null && UnityEngine.GUILayout.Button("Debug Users"))
+            {
+                for(int i = 0; i < m_self.m_connectedClients.Count; i++)
+                {
+                    Debug.Log("[UsernameManager] Client: " + m_self.m_connectedClients[i].ClientID);
+                }
+            }
+        }
+    }
+#endif
 }
