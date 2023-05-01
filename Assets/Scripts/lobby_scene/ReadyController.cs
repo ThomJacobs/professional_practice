@@ -66,7 +66,7 @@ namespace Jacobs.Lobby
 
         public void TryLoadScene(string p_name)
         {
-            if (!IsServer) { return; }
+            if (!IsServer || !CanStartGame) { return; }
             NetworkManager.SceneManager.LoadScene(p_name, UnityEngine.SceneManagement.LoadSceneMode.Single);
         }
 
@@ -130,7 +130,7 @@ namespace Jacobs.Lobby
                 else
                 {
                     m_playerCards[i].gameObject.SetActive(true);
-                    m_playerCards[i].Username = "RandomName";
+                    m_playerCards[i].Username = Core.UsernameManager.Singleton.GetClient(m_activeClients[i].m_clientID).Username;
                     m_playerCards[i].IsReady = m_activeClients[i].m_isReady;
                 }
             }
