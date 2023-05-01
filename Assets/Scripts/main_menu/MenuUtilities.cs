@@ -13,7 +13,7 @@ namespace Jacobs.UI
 
         public void StartRelay(string p_sceneName)
         {
-            Core.RelayManager.Singleton.HostServer().ContinueWith(result => RelayLoadScene(p_sceneName));
+            Core.RelayManager.Singleton.HostServer();
         }
 
         public void RelayLoadScene(string p_sceneName)
@@ -23,7 +23,7 @@ namespace Jacobs.UI
 
         public void JoinRelay(string p_joinCode)
         {
-            Core.RelayManager.Singleton.JoinServer(p_joinCode).ContinueWith(result => Debug.Log("Success"));
+            Core.RelayManager.Singleton.JoinServer(p_joinCode);
         }
     }
 }

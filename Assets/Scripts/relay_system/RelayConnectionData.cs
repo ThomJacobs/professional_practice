@@ -10,7 +10,14 @@ using Unity.Netcode.Transports.UTP;
 
 namespace Jacobs.Core
 {
-    public struct RelayHostData
+    public enum RelayConnectionType
+    {
+        Empty = 0,
+        Host = 1,
+        Client = 2
+    }
+
+    public struct RelayConnectionData
     {
         //Attributes:
         public string m_joinCode;
@@ -20,9 +27,10 @@ namespace Jacobs.Core
         public byte[] m_allocationIDBytes;
         public byte[] m_connectionData;
         public byte[] m_key;
+        public RelayConnectionType m_type;
 
         //Constructors:
-        public RelayHostData(Allocation p_allocation, string p_joinCode = "")
+        public RelayConnectionData(Allocation p_allocation, string p_joinCode = "", RelayConnectionType p_type = RelayConnectionType.Empty)
         {
             m_key = p_allocation.Key;
             m_port = (ushort)p_allocation.RelayServer.Port;
@@ -31,6 +39,7 @@ namespace Jacobs.Core
             m_ipv4Address = p_allocation.RelayServer.IpV4;
             m_connectionData = p_allocation.ConnectionData;
             m_joinCode = p_joinCode;
+            m_type = p_type;
         }
     }
 }

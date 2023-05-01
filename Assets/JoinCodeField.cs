@@ -25,11 +25,11 @@ public class JoinCodeField : NetworkBehaviour
         m_button.onClick.AddListener(delegate { StartSession(m_inputField.text); });
     }
 
-    public async void StartSession(string p_joinCode)
+    public void StartSession(string p_joinCode)
     {
         try
         {
-            await Jacobs.Core.RelayManager.Singleton.JoinServer(p_joinCode);
+            Jacobs.Core.RelayManager.Singleton.JoinServer(p_joinCode);
         }
         catch(System.Exception e)
         {

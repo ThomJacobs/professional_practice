@@ -41,7 +41,7 @@ namespace Jacobs.Core
         [Header("Relay Settings")]
         [SerializeField] private string m_environment = "production";
         [SerializeField] private int m_requestedConnections = 10;
-        private RelayHostData m_hostData;
+        private RelayConnectionData m_hostData;
 
         [Header("Game Settings")]
 #if UNITY_EDITOR
@@ -79,16 +79,6 @@ namespace Jacobs.Core
             m_usernameManager = UsernameManager.Singleton;
         }
 
-        private void OnDestroy()
-        {
-
-        }
-
-        private void OnListChanged(NetworkListEvent<ulong> p_event)
-        {
-
-        }
-
         /**
          *  Executed whenever a value in the component's inspector is modified.
          */
@@ -111,24 +101,31 @@ namespace Jacobs.Core
          *  @param p_initialisationOptions: Passed over to 'Unity Services' to aid the initialisation setup.
          *  @return True when the player has been successfully signed in, False when an exception has occured (Check Unity Log Files).
          */
-        public async Task<bool> AuthenticatePlayer(InitializationOptions p_initialisationOptions)
+        public async Task<bool> AnonymouseSignIn(InitializationOptions p_initialisationOptions)
         {
             try
             {
-               // if(AuthenticationService.Instance.IsSignedIn && !AuthenticationService.Instance.IsExpired) { return true; }
+                //If unity services are uninitallised, initialise unity services.
+                if (UnityServices.State == ServicesInitializationState.Uninitialized) { await UnityServices.InitializeAsync(p_initialisationOptions); }
 
-                //Initialise unity services.
-                await UnityServices.InitializeAsync(p_initialisationOptions);
+                //If the player is already signed in and the session is not expired return true.
+                if(AuthenticationService.Instance.IsSignedIn && !AuthenticationService.Instance.IsExpired) { return true; }
 
-                //Sign the player in anonymously if they are not currently signed in to Unity.
-                if(AuthenticationService.Instance.IsSignedIn) { return true; } 
+                //Sign in player anonymously.
                 await AuthenticationService.Instance.SignInAnonymouslyAsync();
+
                 return true;
             }
-            catch(Exception p_exception)
+            catch(AuthenticationException exception)
             {
                 //If an exception is caught relay it's message back through Unity's editor system.
-                Debug.LogException(p_exception);
+                Debug.LogException(exception);
+                return false;
+            }
+
+            catch(RequestFailedException exception)
+            {
+                Debug.LogException(exception);
                 return false;
             }
         }
@@ -139,15 +136,15 @@ namespace Jacobs.Core
          * 
          * @return Information about the relay host.
          */
-        public async Task<RelayHostData> HostServer()
+        public async void HostServer(string p_playerName = "DEFAULT_HOST")
         {
             //Authenticate the player first. (If the player is not already signed in, sign them in anonymously.
-            await AuthenticatePlayer(new InitializationOptions().SetEnvironmentName(m_environment));
+            await AnonymouseSignIn(new InitializationOptions().SetEnvironmentName(m_environment));
 
             //Allocate an available relay server connection.
             Allocation allocation = await Relay.Instance.CreateAllocationAsync(m_requestedConnections);
 
-            RelayHostData relay_host_data = new RelayHostData(allocation, await Relay.Instance.GetJoinCodeAsync(allocation.AllocationId));
+            RelayConnectionData relay_host_data = new RelayConnectionData(allocation, await Relay.Instance.GetJoinCodeAsync(allocation.AllocationId), RelayConnectionType.Host);
             
             //Pass relay server data over to Unity Transport.
             Transport.SetRelayServerData(relay_host_data.m_ipv4Address, relay_host_data.m_port, relay_host_data.m_allocationIDBytes, relay_host_data.m_key, relay_host_data.m_connectionData);
@@ -156,7 +153,8 @@ namespace Jacobs.Core
             NetworkManager.Singleton.ConnectionApprovalCallback += ApprovalCallback;
 
             NetworkManager.Singleton.StartHost();
-            m_usernameManager.SetClientUsername(m_networkManager.LocalClientId, "HOST_USER");
+
+            m_usernameManager.SetClientUsername(m_networkManager.LocalClientId, p_playerName);
 
             Debug.Log("Relay generated join code: " + relay_host_data.m_joinCode);
 
@@ -164,8 +162,6 @@ namespace Jacobs.Core
             NetworkManager.Singleton.SceneManager.LoadScene("lobby", UnityEngine.SceneManagement.LoadSceneMode.Single);
 
             m_hostData = relay_host_data;
-
-            return relay_host_data;
         }
 
         //https://docs-multiplayer.unity3d.com/netcode/current/basics/connection-approval/index.html
@@ -185,7 +181,7 @@ namespace Jacobs.Core
          * 
          * @return Information about the relay network connection.
          */
-        public async Task<RelayJoinData> JoinServer(string joinCode)
+        public async void JoinServer(string p_joinCode, string p_playerName = "DEFAULT_CLIENT")
         {
             InitializationOptions options = new InitializationOptions().SetEnvironmentName(m_environment);
             await UnityServices.InitializeAsync(options);
@@ -195,7 +191,7 @@ namespace Jacobs.Core
                 await AuthenticationService.Instance.SignInAnonymouslyAsync();
             }
 
-            JoinAllocation allocation = await Relay.Instance.JoinAllocationAsync(joinCode);
+            JoinAllocation allocation = await Relay.Instance.JoinAllocationAsync(p_joinCode);
 
             RelayJoinData relayJoinData = new RelayJoinData
             {
@@ -206,13 +202,13 @@ namespace Jacobs.Core
                 connectionData = allocation.ConnectionData,
                 hostConnectionData = allocation.HostConnectionData,
                 ipv4Address = allocation.RelayServer.IpV4,
-                joinCode = joinCode,
+                joinCode = p_joinCode,
             };
 
             string payload = JsonUtility.ToJson(new ConnectionPayload()
             {
-                m_playerName = "DEFAULT_CLIENT",
-                m_joinCode = joinCode
+                m_playerName = p_playerName,
+                m_joinCode = p_joinCode
             });
 
             //Send information for the server to validate.
@@ -223,9 +219,7 @@ namespace Jacobs.Core
             Transport.SetRelayServerData(relayJoinData.ipv4Address, relayJoinData.port, relayJoinData.allocationIDBtytes, relayJoinData.key, relayJoinData.connectionData, relayJoinData.hostConnectionData);
             NetworkManager.Singleton.StartClient();
 
-            Debug.Log("Client joined game with join code: " + joinCode);
-
-            return relayJoinData;
+            Debug.Log("Client joined game with join code: " + p_joinCode);
         }
     }
 
@@ -244,7 +238,7 @@ namespace Jacobs.Core
 
             EditorGUILayout.LabelField("Developer Settings", EditorStyles.boldLabel);
 
-            if(GUILayout.Button("Begin Host") && Application.isPlaying) { _ = m_self.HostServer(); }
+            if(GUILayout.Button("Begin Host") && Application.isPlaying) { m_self.HostServer(); }
         }
     }
 #endif
