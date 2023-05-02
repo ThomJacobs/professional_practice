@@ -56,6 +56,9 @@ using Unity.Netcode;
 
     private void Update()
     {
+        //Only the client which owns the instance should have control over the player controller.
+        if(!IsOwner) { return; }
+
         //Rigidbody movement and rotation.
         m_rigidbody.MoveRotation(m_rigidbody.rotation * Quaternion.Euler(new Vector3(default, MouseX * m_mouseSensitivity, default))); //Rotation
         m_rigidbody.MovePosition(transform.position + Time.deltaTime * this.Velocity * (transform.forward * VerticalAxis + transform.right * HorizontalAxis));
