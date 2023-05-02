@@ -13,6 +13,6 @@ using UnityEngine;
         m_textBox = GetComponent<TMPro.TextMeshProUGUI>();
         UnityEngine.Assertions.Assert.IsNotNull<TMPro.TextMeshProUGUI>(m_textBox);
 
-        m_textBox.text = Jacobs.Core.RelayManager.Singleton.JoinCode;
+        m_textBox.text = Jacobs.Core.LobbyManager.Singleton.JoinCode;
     }
 }

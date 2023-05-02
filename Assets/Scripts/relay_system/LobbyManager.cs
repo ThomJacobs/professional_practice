@@ -35,7 +35,7 @@ namespace Jacobs.Core
      * @owner Thomas Jacobs.
      * @date 20/04/23.
      */
-    [RequireComponent(typeof(NetworkManager))] public sealed class RelayManager : MonoSingleton<RelayManager>
+    [RequireComponent(typeof(NetworkManager))] public sealed class LobbyManager : MonoSingleton<LobbyManager>
     {
         //Attributes:
         [Header("Relay Settings")]
@@ -136,7 +136,7 @@ namespace Jacobs.Core
          * 
          * @return Information about the relay host.
          */
-        public async void HostServer(string p_playerName = "DEFAULT_HOST")
+        public async void StartHost(string p_playerName = "DEFAULT_HOST")
         {
             //Authenticate the player first. (If the player is not already signed in, sign them in anonymously.
             await AnonymouseSignIn(new InitializationOptions().SetEnvironmentName(m_environment));
@@ -181,7 +181,7 @@ namespace Jacobs.Core
          * 
          * @return Information about the relay network connection.
          */
-        public async void JoinServer(string p_joinCode, string p_playerName = "DEFAULT_CLIENT")
+        public async void StartClient(string p_joinCode, string p_playerName = "DEFAULT_CLIENT")
         {
             InitializationOptions options = new InitializationOptions().SetEnvironmentName(m_environment);
             await UnityServices.InitializeAsync(options);
@@ -224,21 +224,21 @@ namespace Jacobs.Core
     }
 
 #if UNITY_EDITOR
-    [CustomEditor(typeof(RelayManager))]
+    [CustomEditor(typeof(LobbyManager))]
     public class RelayManagerEditor : Editor
     {
         //Attributes:
-        private RelayManager m_self = null;
+        private LobbyManager m_self = null;
 
         //Methods:
-        private void OnEnable() => m_self = (RelayManager)target;
+        private void OnEnable() => m_self = (LobbyManager)target;
         public override void OnInspectorGUI()
         {
             base.OnInspectorGUI();
 
             EditorGUILayout.LabelField("Developer Settings", EditorStyles.boldLabel);
 
-            if(GUILayout.Button("Begin Host") && Application.isPlaying) { m_self.HostServer(); }
+            if(GUILayout.Button("Begin Host") && Application.isPlaying) { m_self.StartHost(); }
         }
     }
 #endif

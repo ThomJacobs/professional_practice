@@ -30,7 +30,7 @@ public class JoinCodeField : NetworkBehaviour
     {
         try
         {
-            Jacobs.Core.RelayManager.Singleton.JoinServer(p_joinCode, p_playerName);
+            Jacobs.Core.LobbyManager.Singleton.StartClient(p_joinCode, p_playerName);
         }
         catch(System.Exception e)
         {
