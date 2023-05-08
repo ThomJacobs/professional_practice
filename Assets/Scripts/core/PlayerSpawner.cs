@@ -13,8 +13,12 @@ namespace Underground.Spawning
     public sealed class PlayerSpawner : NetworkBehaviour
     {
         //Attributes:
+        [Header("Player Settings")]
         public GameObject m_prefabAsset = null;
         private NetworkObject m_spawnedObject = null;
+
+        [Header("Spawn Settings")]
+        public List<SpawnPoint> m_spawnPoints = null;
 
         /*
          * Called once when a gameObject is first created/initialised.
@@ -32,6 +36,31 @@ namespace Underground.Spawning
             m_spawnedObject.gameObject.SetActive(false);
         }
 
+        private SpawnPoint PopSpawnPoint()
+        {
+            //Generate a random spawn point to position the player on.
+            SpawnPoint spawnPoint = m_spawnPoints[Random.Range(0, m_spawnPoints.Count)];
+
+            //Remove the spawn point from the host/server instance.
+            m_spawnPoints.Remove(spawnPoint);
+
+            return spawnPoint;
+        }
+
+        [ServerRpc]
+        private void SpawnServerRpc(ref NetworkObject p_networkObject, ulong p_clientOwner)
+        {
+#if UNITY_EDITOR
+            if(m_spawnPoints.Count <= 0) { Debug.LogWarning("[PlayerSpawner] Spawn system has ran out of spawn points to spawn clients."); return; }
+#endif
+            //Generate a random spawn point to position the player on.
+            p_networkObject.transform.position = PopSpawnPoint().Position;
+            p_networkObject.Spawn();
+
+            //Ensure the network object keeps the desired ownership.
+            p_networkObject.ChangeOwnership(p_clientOwner);
+        }
+
         /*
          * Called when an object is spawned on a network.
          */
@@ -44,6 +73,12 @@ namespace Underground.Spawning
 
             //Activate and spawn the player object.
             m_spawnedObject.gameObject.SetActive(true);
+
+            //Send a message to the server/host instructing them to spawn the object.
+            if (IsClient) { SpawnServerRpc(ref m_spawnedObject, m_spawnedObject.NetworkManager.LocalClientId); return; }
+
+            //If this is a host/server instance, the player can be directly spawned from this instance.
+            m_spawnedObject.transform.position = PopSpawnPoint().Position;
             m_spawnedObject.Spawn();
         }
 
