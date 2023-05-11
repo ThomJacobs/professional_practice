@@ -10,55 +10,53 @@ namespace Underground.Spawning
      * with a player spawner instance. The script also handles despawning the player object if it hasn't already been despawned and destroyed by external scripts when the player
      * spawner is despawned/destroyed.
      */
-    public sealed class PlayerSpawner : NetworkBehaviour
+    public sealed class PlayerSpawner : NetworkBehaviour, INetworkPrefabInstanceHandler
     {
         //Attributes:
         [Header("Player Settings")]
-        public GameObject m_prefabAsset = null;
-        private NetworkObject m_spawnedObject = null;
+        [SerializeField] private GameObject m_PrefabAsset = null;
 
         [Header("Spawn Settings")]
-        public List<SpawnPoint> m_spawnPoints = null;
+        public List<SpawnPoint> m_SpawnPoints = null;
+
+        private GameObject m_SpawnedPrefab = null;
+        private NetworkObject m_SpawnedNetworkObject = null;
 
         /*
          * Called once when a gameObject is first created/initialised.
          */
         private void Awake()
         {
-            //If the prefab asset is null/empty then the script has no gameObject to spawn for the player and will return.
-            if (m_prefabAsset == null) { Destroy(this); return; }
-
-            //Add the prefab to the network manager, ready for spawning.
-            Jacobs.Core.LobbyManager.Singleton.NetworkManager.AddNetworkPrefab(m_prefabAsset);
+            //The prefab asset must be setup, otherwise the client will have no 'playable' game-object to represent them in a scene.
+            UnityEngine.Assertions.Assert.IsNotNull<GameObject>(m_PrefabAsset);
+            UnityEngine.Assertions.Assert.IsTrue(m_SpawnPoints.Count > 0);
 
             //Instantiate the gameObject and set it as inactive until the client is spawned.
-            m_spawnedObject = Instantiate<NetworkObject>(m_prefabAsset.GetComponent<NetworkObject>());
-            m_spawnedObject.gameObject.SetActive(false);
+            m_SpawnedNetworkObject = Instantiate<NetworkObject>(m_PrefabAsset.GetComponent<NetworkObject>());
+            m_SpawnedNetworkObject.gameObject.SetActive(false);
+            m_SpawnedPrefab = m_SpawnedNetworkObject.gameObject;
         }
 
         private SpawnPoint PopSpawnPoint()
         {
             //Generate a random spawn point to position the player on.
-            SpawnPoint spawnPoint = m_spawnPoints[Random.Range(0, m_spawnPoints.Count)];
+            SpawnPoint spawnPoint = m_SpawnPoints[Random.Range(0, m_SpawnPoints.Count)];
 
-            //Remove the spawn point from the host/server instance.
-            m_spawnPoints.Remove(spawnPoint);
+            //Remove the spawn point from the host/server instance. (Retain one spawn point to exclude the chance of running out of spawn points).
+            if (m_SpawnPoints.Count > 1) { m_SpawnPoints.Remove(spawnPoint); }
 
             return spawnPoint;
         }
 
-        [ServerRpc]
-        private void SpawnServerRpc(ref NetworkObject p_networkObject, ulong p_clientOwner)
+        private void Spawn()
         {
-#if UNITY_EDITOR
-            if(m_spawnPoints.Count <= 0) { Debug.LogWarning("[PlayerSpawner] Spawn system has ran out of spawn points to spawn clients."); return; }
-#endif
-            //Generate a random spawn point to position the player on.
-            p_networkObject.transform.position = PopSpawnPoint().Position;
-            p_networkObject.Spawn();
+            //Only the host client can spawn a player. If the player prefab is null or has already spawned the program will exit the function.
+            if(!IsServer || m_SpawnedPrefab == null || m_SpawnedNetworkObject.IsSpawned) { return; }
 
-            //Ensure the network object keeps the desired ownership.
-            p_networkObject.ChangeOwnership(p_clientOwner);
+            //Activate and spawn prefab.
+            m_SpawnedPrefab.SetActive(true);
+            m_SpawnedPrefab.transform.position = PopSpawnPoint().transform.position;
+            m_SpawnedNetworkObject.Spawn();
         }
 
         /*
@@ -68,18 +66,15 @@ namespace Underground.Spawning
         {
             base.OnNetworkSpawn();
 
+            NetworkManager.PrefabHandler.AddHandler(m_PrefabAsset, this);
+
             //The spawned object should not be destroyed by any external script.
-            if (m_spawnedObject == null) { Debug.LogWarning("[PlayerSpawner] spawned object was not set to a prefab instance."); Destroy(this); return; };
+            if (m_PrefabAsset == null) { Debug.LogWarning("[PlayerSpawner] spawned object was not set to a prefab instance."); Destroy(this); return; };
 
-            //Activate and spawn the player object.
-            m_spawnedObject.gameObject.SetActive(true);
-
-            //Send a message to the server/host instructing them to spawn the object.
-            if (IsClient) { SpawnServerRpc(ref m_spawnedObject, m_spawnedObject.NetworkManager.LocalClientId); return; }
+            if(!IsServer) { return; }
 
             //If this is a host/server instance, the player can be directly spawned from this instance.
-            m_spawnedObject.transform.position = PopSpawnPoint().Position;
-            m_spawnedObject.Spawn();
+            Spawn();
         }
 
         /*
@@ -88,16 +83,31 @@ namespace Underground.Spawning
         public override void OnNetworkDespawn()
         {
             //If the spawned object hasn't been destroyed, despawn and deactivate it.
-            if (m_spawnedObject != null && m_spawnedObject.IsSpawned)
+            if (m_SpawnedNetworkObject != null && m_SpawnedNetworkObject.IsSpawned)
             {
-                m_spawnedObject.gameObject.SetActive(false);
-                m_spawnedObject.Despawn();
-                m_spawnedObject = null;
+                m_SpawnedNetworkObject.gameObject.SetActive(false);
+                m_SpawnedNetworkObject.Despawn();
+                m_SpawnedNetworkObject = null;
             }
 
-            m_prefabAsset = null;
+            m_PrefabAsset = null;
 
             base.OnNetworkDespawn();
+        }
+
+        public NetworkObject Instantiate(ulong p_ClientID, Vector3 p_Position, Quaternion p_Rotation)
+        {
+            //Activate the prefab and translate it according to the values of the parameters.
+            m_SpawnedPrefab.SetActive(true);
+            m_PrefabAsset.transform.position = p_Position;
+            m_PrefabAsset.transform.rotation = p_Rotation;
+            return m_SpawnedNetworkObject;
+        }
+
+        public void Destroy(NetworkObject networkObject)
+        {
+            //Deactivate the prefab.
+            m_SpawnedPrefab.SetActive(false);
         }
     }
 }
