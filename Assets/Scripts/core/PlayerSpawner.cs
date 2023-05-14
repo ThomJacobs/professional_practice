@@ -17,6 +17,7 @@ namespace Underground.Spawning
         [SerializeField] private GameObject m_PrefabAsset = null;
 
         [Header("Spawn Settings")]
+        public bool m_SpawnOnAwake = false;
         public List<SpawnPoint> m_SpawnPoints = null;
 
         private GameObject m_SpawnedPrefab = null;
@@ -48,15 +49,16 @@ namespace Underground.Spawning
             return spawnPoint;
         }
 
-        private void Spawn()
+        public NetworkObject Spawn()
         {
             //Only the host client can spawn a player. If the player prefab is null or has already spawned the program will exit the function.
-            if(!IsServer || m_SpawnedPrefab == null || m_SpawnedNetworkObject.IsSpawned) { return; }
+            if(!IsServer || m_SpawnedPrefab == null || m_SpawnedNetworkObject.IsSpawned) { return null; }
 
             //Activate and spawn prefab.
             m_SpawnedPrefab.SetActive(true);
             m_SpawnedPrefab.transform.position = PopSpawnPoint().transform.position;
             m_SpawnedNetworkObject.Spawn();
+            return m_SpawnedNetworkObject;
         }
 
         /*
@@ -74,7 +76,7 @@ namespace Underground.Spawning
             if(!IsServer) { return; }
 
             //If this is a host/server instance, the player can be directly spawned from this instance.
-            Spawn();
+            if (m_SpawnOnAwake) { Spawn(); }
         }
 
         /*
