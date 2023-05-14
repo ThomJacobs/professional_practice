@@ -59,7 +59,7 @@ namespace Underground.Core
             NetworkObject networkObject = m_PlayerSpawner.Spawn();
 
             //Allocate and setup the client a 'player-state' component.
-            if(IsClient) { return; }
+            if(!IsHost) { return; }
 
             PlayerState state = networkObject.gameObject.AddComponent<PlayerState>();
             state.IsAlive = true;
