@@ -37,15 +37,18 @@ namespace Underground.Core
         [ServerRpc]
         private void NotifyServerRpc(ulong p_ClientID, bool p_AliveValue)
         {
+            CheckGameIsValid(p_ClientID, p_AliveValue);
+        }
+
+        private void CheckGameIsValid(ulong p_ClientID, bool p_AliveValue)
+        {
             Debug.Log("Player has changed state");
-            OnPlayerStateChange(p_ClientID, p_AliveValue);
         }
 
         private void OnPlayerStateChange(ulong p_ClientID, bool p_AliveValue)
         {
             if(IsClient) { NotifyServerRpc(p_ClientID, p_AliveValue); return; }
-
-
+            else { CheckGameIsValid(p_ClientID, p_AliveValue); }
         }
 
         /**
